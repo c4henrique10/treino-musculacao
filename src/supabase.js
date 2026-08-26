@@ -270,18 +270,22 @@ export const saveWorkoutSheetWithExercises = async (sheetId, name, description, 
       .from('workout_sheets')
       .update({ name, description })
       .eq('id', sheetId);
-    
+
     if (sheetError) throw sheetError;
 
-    // 2. Delete Existing Exercises
-    const { error: deleteError } = await supabase
+    // 2. Capture the exercises that exist today so we know what to remove
+    // once the new list is safely in. We deliberately insert BEFORE
+    // deleting: if the insert below fails, the ficha keeps its previous
+    // exercises instead of being left empty.
+    const { data: existingExercises, error: fetchError } = await supabase
       .from('exercises')
-      .delete()
+      .select('id')
       .eq('workout_sheet_id', sheetId);
 
-    if (deleteError) throw deleteError;
+    if (fetchError) throw fetchError;
+    const oldExerciseIds = (existingExercises || []).map(ex => ex.id);
 
-    // 3. Re-insert updated list
+    // 3. Insert the updated list
     if (exercisesList.length > 0) {
       const dbExercises = exercisesList.map((ex, idx) => ({
         workout_sheet_id: sheetId,
@@ -295,9 +299,24 @@ export const saveWorkoutSheetWithExercises = async (sheetId, name, description, 
       const { error: insertError } = await supabase
         .from('exercises')
         .insert(dbExercises);
-        
+
       if (insertError) throw insertError;
     }
+
+    // 4. Only now remove the previous exercises, targeting the exact ids
+    // captured in step 2 (never by workout_sheet_id) so the rows just
+    // inserted above are never touched. If this step fails, the ficha ends
+    // up with duplicated exercises — recoverable by saving again — instead
+    // of silently losing data.
+    if (oldExerciseIds.length > 0) {
+      const { error: deleteError } = await supabase
+        .from('exercises')
+        .delete()
+        .in('id', oldExerciseIds);
+
+      if (deleteError) throw deleteError;
+    }
+
     return true;
   } else {
     // LocalStorage
