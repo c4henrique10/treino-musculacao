@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Play, 
-  Check, 
-  Clock, 
-  Video, 
-  AlertTriangle, 
-  X, 
+import {
+  Play,
+  Check,
+  Clock,
+  Video,
+  AlertTriangle,
+  X,
   Award,
   ChevronRight,
-  HelpCircle
+  HelpCircle,
+  Plus
 } from 'lucide-react';
 import { saveWorkoutLog, getWorkoutLogs } from '../supabase';
 import Timer from '../components/Timer';
@@ -165,6 +166,22 @@ export default function WorkoutExecution({ sheet, onCancel, onFinish }) {
   const handleUpdateSetField = (exIdx, setIdx, field, val) => {
     const list = [...exerciseStates];
     list[exIdx].sets[setIdx][field] = val;
+    setExerciseStates(list);
+  };
+
+  // Appends a manual extra set at the end of an exercise's list, numbered
+  // sequentially after the last existing set. Reuses the previous set's reps
+  // as a sensible default target.
+  const handleAddExtraSet = (exIdx) => {
+    const list = [...exerciseStates];
+    const sets = list[exIdx].sets;
+    const lastSet = sets[sets.length - 1];
+    sets.push({
+      set_number: sets.length + 1,
+      weight: '',
+      reps: lastSet ? lastSet.reps : 10,
+      completed: false
+    });
     setExerciseStates(list);
   };
 
@@ -358,6 +375,15 @@ export default function WorkoutExecution({ sheet, onCancel, onFinish }) {
                   </div>
                 ))}
               </div>
+
+              {/* Add Extra Set */}
+              <button
+                onClick={() => handleAddExtraSet(exIdx)}
+                className="w-full flex items-center justify-center gap-1.5 text-[10px] font-bold text-indigo-400 hover:text-indigo-300 py-2.5 rounded-2xl border border-dashed border-slate-800 hover:border-indigo-500/40 transition-colors cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Adicionar Série Extra</span>
+              </button>
             </div>
           );
         })}
