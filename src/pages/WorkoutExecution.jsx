@@ -13,17 +13,89 @@ import {
 import { saveWorkoutLog, getWorkoutLogs } from '../supabase';
 import Timer from '../components/Timer';
 
+// --- LOCAL DRAFT AUTOSAVE (in-progress workout session) ---
+// Scoped per workout_sheet id so reopening a different ficha never restores
+// someone else's in-progress sets. Best-effort: storage errors are swallowed
+// since autosave must never block the actual workout.
+const DRAFT_KEY_PREFIX = 'workout_draft_';
+
+const loadDraft = (sheetId) => {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY_PREFIX + sheetId);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    return null;
+  }
+};
+
+const saveDraft = (sheetId, draft) => {
+  try {
+    localStorage.setItem(DRAFT_KEY_PREFIX + sheetId, JSON.stringify(draft));
+  } catch (e) {
+    // Storage unavailable/full — autosave is best-effort, ignore.
+  }
+};
+
+const clearDraft = (sheetId) => {
+  try {
+    localStorage.removeItem(DRAFT_KEY_PREFIX + sheetId);
+  } catch (e) {
+    // Ignore.
+  }
+};
+
+const buildInitialExerciseStates = (sheet) => {
+  if (!sheet || !sheet.exercises) return [];
+  return sheet.exercises.map(ex => {
+    const numSets = parseInt(ex.target_sets || 4);
+    const targetReps = parseInt(ex.target_reps || 10);
+
+    const sets = Array.from({ length: numSets }, (_, i) => ({
+      set_number: i + 1,
+      weight: '',
+      reps: targetReps,
+      completed: false
+    }));
+
+    return {
+      exercise_id: ex.id,
+      exercise_name: ex.name,
+      youtube_url: ex.youtube_url,
+      sets
+    };
+  });
+};
+
+// A draft only counts as usable if it belongs to this exact ficha AND still
+// has the same number of exercises — otherwise the ficha was edited since
+// the draft was saved and restoring it could show stale/mismatched sets.
+const draftMatchesSheet = (draft, sheet) => {
+  if (!draft || !sheet) return false;
+  if (draft.sheetId !== sheet.id) return false;
+  if (!Array.isArray(draft.exerciseStates)) return false;
+  return draft.exerciseStates.length === (sheet.exercises?.length || 0);
+};
+
 export default function WorkoutExecution({ sheet, onCancel, onFinish }) {
-  const [duration, setDuration] = useState(0);
-  const [exerciseStates, setExerciseStates] = useState([]);
+  const initialDraftRef = useRef(loadDraft(sheet.id));
+  const hasUsableDraft = draftMatchesSheet(initialDraftRef.current, sheet);
+  if (initialDraftRef.current && !hasUsableDraft) {
+    // Stale draft (different ficha, or ficha shape changed) — discard it.
+    clearDraft(sheet.id);
+  }
+
+  const [duration, setDuration] = useState(() => (hasUsableDraft ? initialDraftRef.current.duration : 0));
+  const [exerciseStates, setExerciseStates] = useState(() =>
+    hasUsableDraft ? initialDraftRef.current.exerciseStates : buildInitialExerciseStates(sheet)
+  );
   const [historyLogs, setHistoryLogs] = useState([]);
-  
+
   // Timer Modal Control
   const [activeTimerDuration, setActiveTimerDuration] = useState(null);
-  
+
   // Video Modal Control
   const [activeVideoUrl, setActiveVideoUrl] = useState(null);
-  
+
   const timerRef = useRef(null);
 
   // 1. Clock timer
@@ -47,31 +119,14 @@ export default function WorkoutExecution({ sheet, onCancel, onFinish }) {
     loadHistory();
   }, []);
 
-  // 3. Initialize exercise sets state
+  // 3. Autosave the in-progress session locally (debounced) so a refresh,
+  // a killed mobile tab, or a failed final save doesn't lose typed sets.
   useEffect(() => {
-    if (sheet && sheet.exercises) {
-      const initialStates = sheet.exercises.map(ex => {
-        const numSets = parseInt(ex.target_sets || 4);
-        const targetReps = parseInt(ex.target_reps || 10);
-        
-        // Build sets array
-        const sets = Array.from({ length: numSets }, (_, i) => ({
-          set_number: i + 1,
-          weight: '',
-          reps: targetReps,
-          completed: false
-        }));
-
-        return {
-          exercise_id: ex.id,
-          exercise_name: ex.name,
-          youtube_url: ex.youtube_url,
-          sets
-        };
-      });
-      setExerciseStates(initialStates);
-    }
-  }, [sheet]);
+    const id = setTimeout(() => {
+      saveDraft(sheet.id, { sheetId: sheet.id, duration, exerciseStates, savedAt: Date.now() });
+    }, 400);
+    return () => clearTimeout(id);
+  }, [sheet.id, duration, exerciseStates]);
 
   // Helper to query historical weights
   const getPreviousPerformance = (exName) => {
@@ -139,11 +194,12 @@ export default function WorkoutExecution({ sheet, onCancel, onFinish }) {
     clearInterval(timerRef.current);
     try {
       await saveWorkoutLog(sheet.id, sheet.name, duration, completedSets);
+      clearDraft(sheet.id);
       alert('Treino concluído e salvo com sucesso! Bom trabalho! 💪🔥');
       onFinish();
     } catch (e) {
       console.error(e);
-      alert('Erro ao salvar o treino.');
+      alert('Erro ao salvar o treino. Seu progresso foi mantido localmente — tente novamente.');
     }
   };
 
@@ -312,6 +368,7 @@ export default function WorkoutExecution({ sheet, onCancel, onFinish }) {
         <button
           onClick={() => {
             if (window.confirm('Tem certeza de que deseja cancelar este treino? Os dados correntes serão perdidos.')) {
+              clearDraft(sheet.id);
               onCancel();
             }
           }}
