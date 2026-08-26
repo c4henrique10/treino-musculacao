@@ -107,6 +107,18 @@ initializeMockDb();
 
 // --- AUTH ACTIONS ---
 
+// Normalizes a Supabase auth user (which only carries full_name inside
+// user_metadata) into the same flat shape used by the LocalStorage mock user,
+// so Dashboard/Navigation can read `user.full_name` regardless of the mode.
+const normalizeSupabaseUser = (user) => {
+  if (!user) return null;
+  return {
+    id: user.id,
+    email: user.email,
+    full_name: user.user_metadata?.full_name || user.email
+  };
+};
+
 export const signUp = async (email, password, fullName) => {
   if (isSupabaseConfigured) {
     const { data, error } = await supabase.auth.signUp({
@@ -119,7 +131,7 @@ export const signUp = async (email, password, fullName) => {
       }
     });
     if (error) throw error;
-    
+
     // Create profile
     if (data?.user) {
       await supabase.from('profiles').upsert({
@@ -128,7 +140,7 @@ export const signUp = async (email, password, fullName) => {
         username: email.split('@')[0]
       });
     }
-    return data.user;
+    return normalizeSupabaseUser(data.user);
   } else {
     // Mock Signup
     const mockUser = { id: 'mock-user-' + Math.random().toString(36).substr(2, 9), email, full_name: fullName };
@@ -141,7 +153,7 @@ export const signIn = async (email, password) => {
   if (isSupabaseConfigured) {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
-    return data.user;
+    return normalizeSupabaseUser(data.user);
   } else {
     // Mock Login
     const storedUser = localStorage.getItem('mock_user');
@@ -168,7 +180,7 @@ export const signOut = async () => {
 export const getUser = async () => {
   if (isSupabaseConfigured) {
     const { data: { user } } = await supabase.auth.getUser();
-    return user;
+    return normalizeSupabaseUser(user);
   } else {
     const storedUser = localStorage.getItem('mock_user');
     return storedUser ? JSON.parse(storedUser) : null;
