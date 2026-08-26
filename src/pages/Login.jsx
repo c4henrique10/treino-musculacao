@@ -138,7 +138,7 @@ export default function Login({ onLoginSuccess }) {
               className="flex items-center gap-1.5 text-xs font-bold text-slate-400 hover:text-white mb-6"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
-              Voltar para login
+              Voltar para Login
             </button>
           )}
 
@@ -228,7 +228,7 @@ export default function Login({ onLoginSuccess }) {
                   onClick={() => { setShowForgotPassword(true); setErrorMsg(''); setSuccessMsg(''); }}
                   className="text-xs text-indigo-400 hover:text-indigo-300 font-semibold block ml-auto pt-0.5"
                 >
-                  Esqueci minha senha
+                  Esqueci Minha Senha
                 </button>
               )}
             </div>

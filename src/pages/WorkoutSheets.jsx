@@ -57,7 +57,7 @@ export default function WorkoutSheets() {
 
   const handleDeleteSheet = async (id, e) => {
     e.stopPropagation();
-    if (!window.confirm('Tem certeza que deseja deletar esta ficha de treino?')) return;
+    if (!window.confirm('Tem certeza de que deseja deletar esta ficha de treino?')) return;
     try {
       await deleteWorkoutSheet(id);
       setSheets(sheets.filter(s => s.id !== id));
@@ -129,7 +129,7 @@ export default function WorkoutSheets() {
       await loadSheets();
     } catch (e) {
       console.error('Error saving sheet', e);
-      alert('Erro ao salvar treino.');
+      alert('Erro ao salvar o treino.');
     } finally {
       setSaving(false);
     }
