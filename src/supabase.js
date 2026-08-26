@@ -177,6 +177,19 @@ export const signOut = async () => {
   }
 };
 
+export const resetPassword = async (email) => {
+  if (isSupabaseConfigured) {
+    const redirectTo = typeof window !== 'undefined' ? window.location.origin : undefined;
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+    if (error) throw error;
+    return true;
+  } else {
+    // Honest fallback: LocalStorage Mock Mode has no real e-mail delivery,
+    // so there is nothing to actually reset. Never pretend success here.
+    throw new Error('A redefinição de senha por e-mail exige credenciais do Supabase configuradas. No modo de demonstração, não há e-mail real para enviar o link.');
+  }
+};
+
 export const getUser = async () => {
   if (isSupabaseConfigured) {
     const { data: { user } } = await supabase.auth.getUser();
