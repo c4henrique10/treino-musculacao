@@ -92,6 +92,10 @@ export default function WorkoutExecution({ sheet, onCancel, onFinish }) {
   );
   const [historyLogs, setHistoryLogs] = useState([]);
 
+  // Final save status (saveWorkoutLog failure/retry feedback)
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(null);
+
   // Timer Modal Control
   const [activeTimerDuration, setActiveTimerDuration] = useState(null);
 
@@ -188,7 +192,14 @@ export default function WorkoutExecution({ sheet, onCancel, onFinish }) {
   };
 
   const handleSaveWorkout = async () => {
-    // Collect all completed sets
+    // Guard against double-submit (e.g. clicking Finalizar and the retry
+    // button back to back) firing two saveWorkoutLog calls at once, which
+    // would create two separate workout log entries.
+    if (saving) return;
+
+    // Collect all completed sets. Recomputed fresh from exerciseStates on
+    // every call (including retries) — never appended to — so retrying
+    // never duplicates a set within the saved log.
     const completedSets = [];
     exerciseStates.forEach(ex => {
       ex.sets.forEach(set => {
@@ -211,14 +222,18 @@ export default function WorkoutExecution({ sheet, onCancel, onFinish }) {
     }
 
     clearInterval(timerRef.current);
+    setSaving(true);
+    setSaveError(null);
     try {
       await saveWorkoutLog(sheet.id, sheet.name, duration, completedSets);
       clearDraft(sheet.id);
+      setSaving(false);
       alert('Treino concluído e salvo com sucesso! Bom trabalho! 💪🔥');
       onFinish();
     } catch (e) {
       console.error(e);
-      alert('Erro ao salvar o treino. Seu progresso foi mantido localmente — tente novamente.');
+      setSaving(false);
+      setSaveError('Não foi possível salvar o treino agora. Seu progresso continua salvo neste aparelho como rascunho — toque em "Tentar Salvar Novamente" quando a conexão voltar.');
     }
   };
 
@@ -263,12 +278,34 @@ export default function WorkoutExecution({ sheet, onCancel, onFinish }) {
 
           <button
             onClick={handleSaveWorkout}
-            className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-1.5 px-3.5 rounded-xl text-xs shadow-lg shadow-indigo-600/20"
+            disabled={saving}
+            className="bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-600/50 text-white font-bold py-1.5 px-3.5 rounded-xl text-xs shadow-lg shadow-indigo-600/20"
           >
-            Finalizar
+            {saving ? 'Salvando...' : 'Finalizar'}
           </button>
         </div>
       </div>
+
+      {/* Save Failure Banner — stays visible until the retry succeeds or the
+          user cancels; the draft is never cleared while this is showing. */}
+      {saveError && (
+        <div className="glass-card rounded-2xl p-4 border border-rose-500/30 bg-rose-500/5 space-y-3">
+          <div className="flex items-start gap-2.5">
+            <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-rose-400" />
+            <div className="text-xs leading-relaxed">
+              <p className="font-bold text-rose-300 mb-1">Não foi possível salvar o treino</p>
+              <p className="text-rose-300/80">{saveError}</p>
+            </div>
+          </div>
+          <button
+            onClick={handleSaveWorkout}
+            disabled={saving}
+            className="w-full bg-rose-600 hover:bg-rose-500 disabled:bg-rose-600/50 text-white font-bold py-2.5 rounded-xl text-xs transition-colors"
+          >
+            {saving ? 'Salvando...' : 'Tentar Salvar Novamente'}
+          </button>
+        </div>
+      )}
 
       {/* Exercises Lists */}
       <div className="space-y-5">
