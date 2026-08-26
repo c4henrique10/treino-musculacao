@@ -58,10 +58,16 @@ CREATE TABLE IF NOT EXISTS public.exercises (
     name TEXT NOT NULL,
     target_sets INTEGER DEFAULT 4,
     target_reps INTEGER DEFAULT 10,
+    rest_seconds INTEGER DEFAULT 90,
     youtube_url TEXT,
     order_index INTEGER DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
+
+-- Garante a coluna em bancos que ja rodaram este script antes de
+-- rest_seconds existir (CREATE TABLE IF NOT EXISTS acima nao altera uma
+-- tabela existente). Reexecutar este arquivo e seguro nesses casos.
+ALTER TABLE public.exercises ADD COLUMN IF NOT EXISTS rest_seconds INTEGER DEFAULT 90;
 
 ALTER TABLE public.exercises ENABLE ROW LEVEL SECURITY;
 

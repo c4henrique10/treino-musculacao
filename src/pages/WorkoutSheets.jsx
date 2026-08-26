@@ -86,6 +86,7 @@ export default function WorkoutSheets() {
         name: '',
         target_sets: 4,
         target_reps: 10,
+        rest_seconds: 90,
         youtube_url: ''
       }
     ]);
@@ -268,8 +269,8 @@ export default function WorkoutSheets() {
                       className="w-full bg-slate-950/40 dark:bg-slate-950/40 light:bg-white border border-slate-850 dark:border-slate-850 light:border-slate-200 focus:border-indigo-500 rounded-xl py-2 px-3 text-xs text-white dark:text-white light:text-slate-900 placeholder-slate-500 outline-none"
                     />
 
-                    {/* Sets & Reps Targets */}
-                    <div className="grid grid-cols-2 gap-3">
+                    {/* Sets, Reps & Rest Targets */}
+                    <div className="grid grid-cols-3 gap-3">
                       <div>
                         <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1 block pl-1">
                           Séries Alvo
@@ -291,6 +292,18 @@ export default function WorkoutSheets() {
                           placeholder="Reps"
                           value={ex.target_reps}
                           onChange={(e) => handleUpdateExerciseField(idx, 'target_reps', e.target.value)}
+                          className="w-full bg-slate-950/40 dark:bg-slate-950/40 light:bg-white border border-slate-850 dark:border-slate-850 light:border-slate-200 focus:border-indigo-500 rounded-xl py-2 px-3 text-xs text-white dark:text-white light:text-slate-900 outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1 block pl-1">
+                          Descanso (s)
+                        </label>
+                        <input
+                          type="number"
+                          placeholder="90"
+                          value={ex.rest_seconds ?? 90}
+                          onChange={(e) => handleUpdateExerciseField(idx, 'rest_seconds', e.target.value)}
                           className="w-full bg-slate-950/40 dark:bg-slate-950/40 light:bg-white border border-slate-850 dark:border-slate-850 light:border-slate-200 focus:border-indigo-500 rounded-xl py-2 px-3 text-xs text-white dark:text-white light:text-slate-900 outline-none"
                         />
                       </div>

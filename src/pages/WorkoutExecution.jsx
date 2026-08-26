@@ -62,6 +62,7 @@ const buildInitialExerciseStates = (sheet) => {
       exercise_id: ex.id,
       exercise_name: ex.name,
       youtube_url: ex.youtube_url,
+      rest_seconds: parseInt(ex.rest_seconds) || 90,
       sets
     };
   });
@@ -153,9 +154,10 @@ export default function WorkoutExecution({ sheet, onCancel, onFinish }) {
         return;
       }
       set.completed = true;
-      
-      // Auto launch rest timer (using standard 90s default preset)
-      setActiveTimerDuration(90);
+
+      // Auto launch rest timer using this exercise's configured rest time
+      // (falls back to 90s if the exercise predates this field)
+      setActiveTimerDuration(list[exIdx].rest_seconds || 90);
     } else {
       // Undo completion
       set.completed = false;

@@ -202,6 +202,7 @@ export const getWorkoutSheets = async () => {
           name,
           target_sets,
           target_reps,
+          rest_seconds,
           youtube_url,
           order_index
         )
@@ -292,6 +293,7 @@ export const saveWorkoutSheetWithExercises = async (sheetId, name, description, 
         name: ex.name,
         target_sets: parseInt(ex.target_sets || 4),
         target_reps: parseInt(ex.target_reps || 10),
+        rest_seconds: parseInt(ex.rest_seconds) || 90,
         youtube_url: ex.youtube_url || '',
         order_index: idx
       }));
@@ -330,6 +332,7 @@ export const saveWorkoutSheetWithExercises = async (sheetId, name, description, 
         name: ex.name,
         target_sets: parseInt(ex.target_sets || 4),
         target_reps: parseInt(ex.target_reps || 10),
+        rest_seconds: parseInt(ex.rest_seconds) || 90,
         youtube_url: ex.youtube_url || '',
         order_index: idx
       }));
