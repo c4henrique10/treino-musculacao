@@ -1,15 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import Navigation from './components/Navigation';
 import Login from './pages/Login';
+import ResetPassword from './pages/ResetPassword';
 import Dashboard from './pages/Dashboard';
 import WorkoutSheets from './pages/WorkoutSheets';
 import WorkoutExecution from './pages/WorkoutExecution';
 import Progress from './pages/Progress';
-import { getUser, signOut } from './supabase';
+import { getUser, signOut, onPasswordRecovery } from './supabase';
 
 function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [activeWorkoutSheet, setActiveWorkoutSheet] = useState(null);
   const [isDarkMode, setIsDarkMode] = useState(true); // Default to Dark Mode
@@ -28,6 +30,32 @@ function App() {
     }
     checkAuth();
   }, []);
+
+  // 1b. Listen for the PASSWORD_RECOVERY event, fired automatically when the
+  // user opens the app via the "reset your password" e-mail link. Takes over
+  // the screen regardless of the current auth/loading state (see render
+  // order below), since the temporary recovery session should never show the
+  // normal dashboard.
+  useEffect(() => {
+    const unsubscribe = onPasswordRecovery(() => {
+      setIsPasswordRecovery(true);
+      // Drop the recovery tokens from the address bar so they don't linger.
+      window.history.replaceState(null, '', window.location.pathname);
+    });
+    return unsubscribe;
+  }, []);
+
+  const handlePasswordResetDone = async () => {
+    // The recovery session is single-purpose — sign out so the user logs in
+    // fresh with the new password instead of staying in that temp session.
+    try {
+      await signOut();
+    } catch (e) {
+      console.error('Sign out after password reset failed', e);
+    }
+    setUser(null);
+    setIsPasswordRecovery(false);
+  };
 
   // 2. Manage theme classes on root element
   useEffect(() => {
@@ -61,6 +89,12 @@ function App() {
     setActiveWorkoutSheet(sheet);
     setActiveTab('execution');
   };
+
+  // Takes priority over loading/login/dashboard: a recovery session must
+  // never fall through to the normal app.
+  if (isPasswordRecovery) {
+    return <ResetPassword onDone={handlePasswordResetDone} />;
+  }
 
   if (loading) {
     return (

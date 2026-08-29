@@ -190,6 +190,34 @@ export const resetPassword = async (email) => {
   }
 };
 
+// Subscribes to the PASSWORD_RECOVERY auth event, fired automatically by
+// supabase-js when the user lands on the app via the reset-password e-mail
+// link (it parses the recovery tokens from the URL on its own). Returns an
+// unsubscribe function. In demo mode there is no real auth session, so this
+// is a no-op that never fires — the reset-password screen simply never
+// becomes reachable, matching the honest "no real reset" behavior.
+export const onPasswordRecovery = (callback) => {
+  if (!isSupabaseConfigured) {
+    return () => {};
+  }
+  const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+    if (event === 'PASSWORD_RECOVERY') {
+      callback();
+    }
+  });
+  return () => subscription.unsubscribe();
+};
+
+export const updateUserPassword = async (newPassword) => {
+  if (isSupabaseConfigured) {
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) throw error;
+    return true;
+  } else {
+    throw new Error('A redefinição de senha exige credenciais do Supabase configuradas. No modo de demonstração, não há senha real para atualizar.');
+  }
+};
+
 export const getUser = async () => {
   if (isSupabaseConfigured) {
     const { data: { user } } = await supabase.auth.getUser();
