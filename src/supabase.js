@@ -474,3 +474,22 @@ export const saveWorkoutLog = async (sheetId, sheetName, durationSeconds, setLog
     return true;
   }
 };
+
+export const deleteWorkoutLog = async (id) => {
+  if (isSupabaseConfigured) {
+    // set_logs has ON DELETE CASCADE on workout_log_id, so this also
+    // removes the associated sets.
+    const { error } = await supabase
+      .from('workout_logs')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+    return true;
+  } else {
+    let logs = JSON.parse(localStorage.getItem('workout_logs') || '[]');
+    logs = logs.filter(log => log.id !== id);
+    localStorage.setItem('workout_logs', JSON.stringify(logs));
+    return true;
+  }
+};

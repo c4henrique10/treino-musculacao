@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Calendar, Trophy, Clock, CheckCircle2, ArrowRight, Activity } from 'lucide-react';
-import { getWorkoutSheets, getWorkoutLogs } from '../supabase';
+import { Play, Calendar, Trophy, Clock, CheckCircle2, ArrowRight, Activity, Trash2 } from 'lucide-react';
+import { getWorkoutSheets, getWorkoutLogs, deleteWorkoutLog } from '../supabase';
 
 export default function Dashboard({ user, onStartWorkout, navigateToSheets }) {
   const [sheets, setSheets] = useState([]);
   const [logs, setLogs] = useState([]);
   const [selectedSheetId, setSelectedSheetId] = useState('');
   const [loading, setLoading] = useState(true);
+  const [deletingLogId, setDeletingLogId] = useState(null);
 
   useEffect(() => {
     async function loadDashboardData() {
@@ -64,6 +65,22 @@ export default function Dashboard({ user, onStartWorkout, navigateToSheets }) {
   const getDayName = (dateStr) => {
     const date = new Date(dateStr);
     return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const handleDeleteLog = async (e, logId, sheetName) => {
+    e.stopPropagation();
+    if (!window.confirm(`Tem certeza de que deseja excluir o treino "${sheetName}"? Essa ação não pode ser desfeita.`)) return;
+
+    setDeletingLogId(logId);
+    try {
+      await deleteWorkoutLog(logId);
+      setLogs(logs.filter(log => log.id !== logId));
+    } catch (e) {
+      console.error('Error deleting workout log', e);
+      alert('Erro ao excluir o treino.');
+    } finally {
+      setDeletingLogId(null);
+    }
   };
 
   if (loading) {
@@ -226,10 +243,18 @@ export default function Dashboard({ user, onStartWorkout, navigateToSheets }) {
                       </div>
                     </div>
                   </div>
-                  <div className="text-right">
+                  <div className="flex items-center gap-2 shrink-0">
                     <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full">
                       {totalSetsCount} séries
                     </span>
+                    <button
+                      onClick={(e) => handleDeleteLog(e, log.id, log.workout_sheet_name)}
+                      disabled={deletingLogId === log.id}
+                      className="p-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 disabled:opacity-50 transition-colors"
+                      title="Excluir treino"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 </div>
               );
