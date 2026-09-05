@@ -20,9 +20,13 @@ export default function Navigation({ activeTab, setActiveTab, user, onLogout, is
   ];
 
   return (
-    <div className="flex flex-col md:flex-row h-full min-h-screen">
+    <div className="flex flex-col md:flex-row">
       {/* --- DESKTOP SIDEBAR --- */}
-      <aside className="hidden md:flex flex-col w-64 glass-card border-r border-slate-800 p-6 justify-between shrink-0">
+      {/* Fixed so it doesn't take up in-flow height next to the main content
+          area (which is a block sibling in App.jsx, not a flex row) — without
+          this, the sidebar's own min-h-screen pushed the real page content
+          down by a full viewport height. */}
+      <aside className="hidden md:flex md:fixed md:inset-y-0 md:left-0 md:z-30 flex-col w-64 glass-card border-r border-slate-800 p-6 justify-between shrink-0">
         <div>
           {/* Logo & Header */}
           <div className="flex items-center gap-3 mb-8">
@@ -129,7 +133,11 @@ export default function Navigation({ activeTab, setActiveTab, user, onLogout, is
       </aside>
 
       {/* --- MOBILE NAVIGATION (HEADER + BOTTOM BAR) --- */}
-      <div className="flex md:hidden flex-col w-full min-h-screen pb-16 bg-slate-950 dark:bg-slate-950 light:bg-slate-50">
+      {/* No min-h-screen here: this is chrome only (header + fixed bottom
+          nav), not a content container — the real page content is a
+          separate sibling rendered by App.jsx. Forcing this to full-viewport
+          height pushed that real content a whole screen down. */}
+      <div className="flex md:hidden flex-col w-full bg-slate-950 dark:bg-slate-950 light:bg-slate-50">
         {/* Mobile Header */}
         <header className="sticky top-0 z-40 flex items-center justify-between px-5 py-4 glass-card border-b border-slate-800/60 dark:border-slate-800/60 light:border-slate-200/80">
           <div className="flex items-center gap-2">
@@ -165,11 +173,6 @@ export default function Navigation({ activeTab, setActiveTab, user, onLogout, is
             </button>
           </div>
         </header>
-
-        {/* View container */}
-        <main className="flex-1 overflow-y-auto px-4 py-5">
-          {/* Main View rendering is handled in parent, this component is just the shell */}
-        </main>
 
         {/* Bottom Nav Bar */}
         <nav className="fixed bottom-0 left-0 right-0 z-40 bg-slate-900/90 dark:bg-slate-900/90 light:bg-slate-100/90 backdrop-blur-xl border-t border-slate-800/60 dark:border-slate-800/60 light:border-slate-200/80 flex items-center justify-around py-2.5">
