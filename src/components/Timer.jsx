@@ -6,6 +6,17 @@ export default function Timer({ duration, onClose }) {
   const [isRunning, setIsRunning] = useState(true);
   const totalDuration = useRef(duration);
 
+  // Absolute-timestamp countdown: setInterval alone drifts/throttles when the
+  // tab is backgrounded or the phone screen locks, so the tick always
+  // recomputes remaining time from Date.now() vs a fixed target timestamp
+  // instead of trusting an accumulated decrement. endTimeRef is meaningful
+  // while running; pausedRemainingMsRef holds the frozen remainder while
+  // paused. hasFiredEndRef guards the chime/vibration from firing more than
+  // once for the same countdown.
+  const endTimeRef = useRef(Date.now() + duration * 1000);
+  const pausedRemainingMsRef = useRef(duration * 1000);
+  const hasFiredEndRef = useRef(false);
+
   // Play a beautiful synthetic notification sound using Web Audio API
   const playEndChime = () => {
     try {
@@ -30,9 +41,11 @@ export default function Timer({ duration, onClose }) {
         osc.stop(ctx.currentTime + idx * 0.12 + 0.8);
       });
 
-      // Vibrate mobile device if API is supported
+      // Vibrate mobile device if API is supported (no-op on iOS Safari,
+      // which has no navigator.vibrate — the 'in' check skips it silently,
+      // and the chime above still plays as an audible fallback there)
       if ('vibrate' in navigator) {
-        navigator.vibrate([150, 100, 150]);
+        navigator.vibrate([300, 100, 300, 100, 300]);
       }
     } catch (e) {
       console.warn('AudioContext chimes blocked or unsupported', e);
@@ -42,27 +55,45 @@ export default function Timer({ duration, onClose }) {
   useEffect(() => {
     setTimeLeft(duration);
     totalDuration.current = duration;
+    endTimeRef.current = Date.now() + duration * 1000;
+    pausedRemainingMsRef.current = duration * 1000;
+    hasFiredEndRef.current = false;
     setIsRunning(true);
   }, [duration]);
 
-  useEffect(() => {
-    let interval = null;
-    if (isRunning && timeLeft > 0) {
-      interval = setInterval(() => {
-        setTimeLeft((prev) => {
-          if (prev <= 1) {
-            playEndChime();
-            setIsRunning(false);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    } else if (!isRunning) {
-      clearInterval(interval);
+  // Recomputes timeLeft from the absolute target timestamp and fires the
+  // end chime/vibration exactly once when time's up. Called on every tick
+  // AND immediately when the tab regains visibility, so a throttled/paused
+  // background interval never leaves a stale number on screen.
+  const syncFromClock = () => {
+    const remainingMs = Math.max(0, endTimeRef.current - Date.now());
+    const remainingSec = Math.ceil(remainingMs / 1000);
+    setTimeLeft(remainingSec);
+    if (remainingMs <= 0 && !hasFiredEndRef.current) {
+      hasFiredEndRef.current = true;
+      pausedRemainingMsRef.current = 0; // so "Retomar" after time's up doesn't restart from the full duration
+      setIsRunning(false);
+      playEndChime();
     }
+  };
+
+  useEffect(() => {
+    if (!isRunning) return;
+    syncFromClock();
+    // The interval only needs to be frequent enough for a smooth display —
+    // correctness never depends on it firing on time, since each tick
+    // re-derives the truth from Date.now() rather than decrementing.
+    const interval = setInterval(syncFromClock, 250);
     return () => clearInterval(interval);
-  }, [isRunning, timeLeft]);
+  }, [isRunning]);
+
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && isRunning) syncFromClock();
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+  }, [isRunning]);
 
   const formatTime = (seconds) => {
     const m = Math.floor(seconds / 60);
@@ -72,15 +103,48 @@ export default function Timer({ duration, onClose }) {
 
   const percentage = (timeLeft / totalDuration.current) * 100;
 
-  const adjustTime = (amount) => {
-    setTimeLeft((prev) => {
-      const nextVal = Math.max(0, prev + amount);
-      // Adjust total duration if we add time past original
-      if (nextVal > totalDuration.current) {
-        totalDuration.current = nextVal;
-      }
-      return nextVal;
-    });
+  // +15s/-15s: shifts whichever timestamp is currently authoritative
+  // (the running end-time, or the frozen paused remainder) so the change
+  // sticks correctly whether or not the countdown is ticking.
+  const adjustTime = (amountSeconds) => {
+    const amountMs = amountSeconds * 1000;
+    if (isRunning) {
+      endTimeRef.current += amountMs;
+    } else {
+      pausedRemainingMsRef.current = Math.max(0, pausedRemainingMsRef.current + amountMs);
+    }
+    const remainingMs = Math.max(0, isRunning ? endTimeRef.current - Date.now() : pausedRemainingMsRef.current);
+    const remainingSec = Math.ceil(remainingMs / 1000);
+    setTimeLeft(remainingSec);
+    if (remainingSec > totalDuration.current) {
+      totalDuration.current = remainingSec;
+    }
+    if (remainingMs > 0) {
+      hasFiredEndRef.current = false;
+    }
+  };
+
+  const handleToggleRunning = () => {
+    if (isRunning) {
+      // Freeze the exact remainder so resuming doesn't jump/skip time.
+      pausedRemainingMsRef.current = Math.max(0, endTimeRef.current - Date.now());
+      setIsRunning(false);
+    } else {
+      endTimeRef.current = Date.now() + pausedRemainingMsRef.current;
+      hasFiredEndRef.current = false;
+      setIsRunning(true);
+    }
+  };
+
+  const handleReset = () => {
+    const ms = totalDuration.current * 1000;
+    if (isRunning) {
+      endTimeRef.current = Date.now() + ms;
+    } else {
+      pausedRemainingMsRef.current = ms;
+    }
+    hasFiredEndRef.current = false;
+    setTimeLeft(totalDuration.current);
   };
 
   return (
@@ -129,7 +193,7 @@ export default function Timer({ duration, onClose }) {
               {formatTime(timeLeft)}
             </span>
             <p className="text-xs text-slate-500 mt-1 uppercase font-semibold tracking-wider">
-              {timeLeft === 0 ? 'Concluído!' : 'Descansando'}
+              {timeLeft === 0 ? 'TEMPO!' : 'Descansando'}
             </p>
           </div>
         </div>
@@ -153,14 +217,14 @@ export default function Timer({ duration, onClose }) {
         {/* Controls */}
         <div className="flex items-center gap-4 w-full">
           <button
-            onClick={() => setTimeLeft(totalDuration.current)}
+            onClick={handleReset}
             className="flex-1 flex justify-center items-center py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors"
           >
             <RotateCcw className="w-5 h-5" />
           </button>
-          
+
           <button
-            onClick={() => setIsRunning(!isRunning)}
+            onClick={handleToggleRunning}
             className={`flex-2 flex justify-center items-center py-3 px-6 rounded-2xl text-white font-bold transition-all ${
               isRunning 
                 ? 'bg-amber-600 hover:bg-amber-500 shadow-lg shadow-amber-600/20' 
